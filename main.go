@@ -77,10 +77,11 @@ func init() {
 
 var (
 	axMap = map[int]int{
-		0: 1, // side
-		1: 2, // throttle
-		2: 4, // brake
-		3: 3, // clutch
+		2: 1, // side
+		3: 2, // throttle
+		4: 4, // brake
+		5: 3, // clutch
+		9: 0, // steering
 	}
 	shift = [][]int{
 		0: {2, 0, 1},
@@ -136,7 +137,7 @@ func main() {
 	go func() {
 		defer func() { receiver = false }()
 		time.Sleep(10 * time.Second)
-		axises := make([]int32, 8)
+		axises := make([]int32, 10)
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan() {
 			for i, s := range strings.Split(scanner.Text(), ",") {
@@ -149,8 +150,11 @@ func main() {
 				}
 				axises[i] = int32(v)
 			}
-			for i, v := range axises[2:6] {
-				js.SetAxis(axMap[i], int(v))
+			for i, v := range axises {
+				idx, ok := axMap[i]
+				if ok {
+					js.SetAxis(idx, int(v))
+				}
 			}
 			shift := setShift(axises[0], axises[1])
 			// for sequential mode
