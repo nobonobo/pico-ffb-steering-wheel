@@ -154,6 +154,9 @@ func main() {
 				idx, ok := axMap[i]
 				if ok {
 					js.SetAxis(idx, int(v))
+					if idx == 0 {
+						js.SetAxis(5, int(v))
+					}
 				}
 			}
 			shift := setShift(axises[0], axises[1])
@@ -227,8 +230,8 @@ func main() {
 		}
 		js.SetButton(2, angle > 32767)
 		js.SetButton(3, angle < -32767)
-		js.SetAxis(0, int(limit1(angle)))
-		js.SetAxis(5, int(limit1(angle)))
+		//js.SetAxis(0, int(limit1(angle)))
+		//js.SetAxis(5, int(limit1(angle)))
 		js.SendState()
 	}
 }
