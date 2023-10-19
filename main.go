@@ -12,6 +12,7 @@ import (
 
 	"tinygo.org/x/drivers/mcp2515"
 
+	"diy-ffb-wheel/logger"
 	"diy-ffb-wheel/motor"
 	"diy-ffb-wheel/pid"
 	"diy-ffb-wheel/utils"
@@ -31,16 +32,16 @@ const (
 	CAN_RX    machine.Pin = 20
 	CAN_CS    machine.Pin = 21
 
-	DEBUG         = false
 	Lock2Lock     = 540
 	HalfLock2Lock = Lock2Lock / 2
 	MaxAngle      = 32768*HalfLock2Lock/360 - 1
 )
 
 var (
-	spi = machine.SPI0
-	js  *joystick.Joystick
-	ph  *pid.PIDHandler
+	spi       = machine.SPI0
+	js        *joystick.Joystick
+	ph        *pid.PIDHandler
+	dummyMode = false
 )
 
 func init() {
@@ -155,6 +156,7 @@ func main() {
 				if ok {
 					js.SetAxis(idx, int(v))
 					if idx == 0 {
+						dummyMode = true
 						js.SetAxis(5, int(v))
 					}
 				}
@@ -212,14 +214,16 @@ func main() {
 			output -= 8 * (angle + 32767)
 		}
 		output -= force[0]
-		if DEBUG && cnt%100 == 0 {
-			print(time.Now().UnixMilli(), ": ")
-			print("v:", state.Verocity, ", ")
-			print("c:", state.Current, ", ")
-			print("a:", angle, ", ")
-			print("f:", force[0], ", ", force[1], ", ")
-			print("o:", output, ", ", receiver)
-			println()
+		if cnt%100 == 0 {
+			logger.Debugf("%d: v=%v,c=%v,a=%v,f=%v,o=%v,r=%v",
+				time.Now().UnixMilli(),
+				state.Verocity,
+				state.Current,
+				angle,
+				force[0],
+				output,
+				receiver,
+			)
 		}
 		cnt++
 		if cnt < 300 {
@@ -230,8 +234,10 @@ func main() {
 		}
 		js.SetButton(2, angle > 32767)
 		js.SetButton(3, angle < -32767)
-		//js.SetAxis(0, int(limit1(angle)))
-		//js.SetAxis(5, int(limit1(angle)))
+		if !dummyMode {
+			js.SetAxis(0, int(limit1(angle)))
+			js.SetAxis(5, int(limit1(angle)))
+		}
 		js.SendState()
 	}
 }
