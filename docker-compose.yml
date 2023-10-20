@@ -6,7 +6,9 @@ services:
     volumes:
       - .:/app
     environment:
-      - OPTIONS=${OPTIONS}
-    command: sh -c 'go mod tidy && mkdir -p build && GOFLAGS="-buildvcs=false" tinygo build $${OPTIONS:--target pico} -o build/diy-ffb-wheel.uf2 .'
+      - TARGET=${TARGET}
+      - TAGS=${TAGS}
+      - GOFLAGS=-buildvcs=false
+    command: sh -xc "go mod tidy && mkdir -p build && tinygo build -tags '${TAGS}' -target ${TARGET:-pico} -o build/diy-ffb-wheel.uf2 ."
     working_dir: /app
     tty: true

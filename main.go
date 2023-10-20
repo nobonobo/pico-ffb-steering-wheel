@@ -12,7 +12,6 @@ import (
 
 	"tinygo.org/x/drivers/mcp2515"
 
-	"diy-ffb-wheel/logger"
 	"diy-ffb-wheel/motor"
 	"diy-ffb-wheel/pid"
 	"diy-ffb-wheel/utils"
@@ -134,9 +133,7 @@ func main() {
 	); err != nil {
 		log.Print(err)
 	}
-	receiver := true
 	go func() {
-		defer func() { receiver = false }()
 		time.Sleep(10 * time.Second)
 		axises := make([]int32, 10)
 		scanner := bufio.NewScanner(os.Stdin)
@@ -214,17 +211,6 @@ func main() {
 			output -= 8 * (angle + 32767)
 		}
 		output -= force[0]
-		if logger.DEBUG && cnt%100 == 0 {
-			log.Printf("%d: v=%v,c=%v,a=%v,f=%v,o=%v,r=%v",
-				time.Now().UnixMilli(),
-				state.Verocity,
-				state.Current,
-				angle,
-				force[0],
-				output,
-				receiver,
-			)
-		}
 		cnt++
 		if cnt < 300 {
 			output = output * int32(cnt) / 300
