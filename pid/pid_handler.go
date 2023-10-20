@@ -265,7 +265,7 @@ func (m *PIDHandler) FreeEffect(id uint8) {
 
 // SetEffect reportId == 0x01
 func (m *PIDHandler) SetEffect(b []byte) {
-	logger.Debugf("SetEffect: %x", b)
+	logger.Debugln("SetEffect:", b)
 	var v SetEffectOutputData
 	_ = v.UnmarshalBinary(b)
 	effect := m.effectStates[v.EffectBlockIndex]
@@ -279,7 +279,7 @@ func (m *PIDHandler) SetEffect(b []byte) {
 
 // SetEnvelope reportId == 0x02
 func (m *PIDHandler) SetEnvelope(b []byte) {
-	logger.Debugf("SetEnvelope: %x", b)
+	logger.Debugln("SetEnvelope:", b)
 	var v SetEnvelopeOutputData
 	_ = v.UnmarshalBinary(b)
 	effect := m.effectStates[v.EffectBlockIndex]
@@ -291,7 +291,7 @@ func (m *PIDHandler) SetEnvelope(b []byte) {
 
 // SetCondition reportId == 0x03
 func (m *PIDHandler) SetCondition(b []byte) {
-	logger.Debugf("SetCondition: %x", b)
+	logger.Debugln("SetCondition:", b)
 	var v SetConditionOutputData
 	_ = v.UnmarshalBinary(b)
 	axis := v.ParameterBlockOffset
@@ -311,7 +311,7 @@ func (m *PIDHandler) SetCondition(b []byte) {
 
 // SetPeriodic reportId == 0x04
 func (m *PIDHandler) SetPeriodic(b []byte) {
-	logger.Debugf("SetPeriodic: %x", b)
+	logger.Debugln("SetPeriodic:", b)
 	var v SetPeriodicOutputData
 	_ = v.UnmarshalBinary(b)
 	effect := m.effectStates[v.EffectBlockIndex]
@@ -323,7 +323,7 @@ func (m *PIDHandler) SetPeriodic(b []byte) {
 
 // SetConstantForce reportId == 0x05
 func (m *PIDHandler) SetConstantForce(b []byte) {
-	logger.Debugf("SetConstantForce: %x", b)
+	logger.Debugln("SetConstantForce:", b)
 	var v SetConstantForceOutputData
 	_ = v.UnmarshalBinary(b)
 	effect := m.effectStates[v.EffectBlockIndex]
@@ -332,7 +332,7 @@ func (m *PIDHandler) SetConstantForce(b []byte) {
 
 // SetRampForce reportId == 0x06
 func (m *PIDHandler) SetRampForce(b []byte) {
-	logger.Debugf("SetRampForce: %x", b)
+	logger.Debugln("SetRampForce:", b)
 	var v SetRampForceOutputData
 	_ = v.UnmarshalBinary(b)
 	effect := m.effectStates[v.EffectBlockIndex]
@@ -342,7 +342,7 @@ func (m *PIDHandler) SetRampForce(b []byte) {
 
 // SetCustomForceData reportId == 0x07
 func (m *PIDHandler) SetCustomForceData(b []byte) {
-	logger.Debugf("SetCustomForceData: %x", b)
+	logger.Debugln("SetCustomForceData:", b)
 	var v SetCustomForceDataOutputData
 	_ = v.UnmarshalBinary(b)
 	// TODO: implement
@@ -350,7 +350,7 @@ func (m *PIDHandler) SetCustomForceData(b []byte) {
 
 // SetDownloadForceSample reportId == 0x08
 func (m *PIDHandler) SetDownloadForceSample(b []byte) {
-	logger.Debugf("SetDownloadForceSample: %x", b)
+	logger.Debugln("SetDownloadForceSample:", b)
 	var v SetDownloadForceSampleOutputData
 	_ = v.UnmarshalBinary(b)
 	// TODO: implement
@@ -358,7 +358,7 @@ func (m *PIDHandler) SetDownloadForceSample(b []byte) {
 
 // EffectOperation reportId == 0x0a
 func (m *PIDHandler) EffectOperation(b []byte) {
-	logger.Debugf("EffectOperation: %x", b)
+	logger.Debugln("EffectOperation:", b)
 	var v EffectOperationOutputData
 	_ = v.UnmarshalBinary(b)
 	switch v.Operation {
@@ -381,7 +381,7 @@ func (m *PIDHandler) EffectOperation(b []byte) {
 
 // BlockFree reportId == 0x0b
 func (m *PIDHandler) BlockFree(b []byte) {
-	logger.Debugf("BlockFree: %x", b)
+	logger.Debugln("BlockFree:", b)
 	var v BlockFreeOutputData
 	_ = v.UnmarshalBinary(b)
 	if v.EffectBlockIndex == 0xff {
@@ -393,7 +393,7 @@ func (m *PIDHandler) BlockFree(b []byte) {
 
 // DeviceControl reportId == 0x0c
 func (m *PIDHandler) DeviceControl(b []byte) {
-	logger.Debugf("DeviceControl: %x", b)
+	logger.Debugln("DeviceControl:", b)
 	var v DeviceControlOutputData
 	_ = v.UnmarshalBinary(b)
 	switch v.Control {
@@ -414,7 +414,7 @@ func (m *PIDHandler) DeviceControl(b []byte) {
 
 // DeviceGain reportId == 0x0d
 func (m *PIDHandler) DeviceGain(b []byte) {
-	logger.Debugf("DeviceGain: %x", b)
+	logger.Debugln("DeviceGain:", b)
 	var v DeviceGainOutputData
 	_ = v.UnmarshalBinary(b)
 	m.gain = v.Gain
@@ -422,7 +422,7 @@ func (m *PIDHandler) DeviceGain(b []byte) {
 
 // SetCustomForce reportId == 0x0e
 func (m *PIDHandler) SetCustomForce(b []byte) {
-	logger.Debugf("SetCustomForce: %x", b)
+	logger.Debugln("SetCustomForce:", b)
 	var v SetCustomForceOutputData
 	_ = v.UnmarshalBinary(b)
 	// TODO: implement

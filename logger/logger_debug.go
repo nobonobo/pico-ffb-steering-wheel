@@ -2,10 +2,24 @@
 
 package logger
 
-import "log"
+import "encoding/hex"
+
+const DEBUG = true
 
 var (
-	Debugf  = log.Printf
-	Debug   = log.Print
-	Debugln = log.Println
+	Debugln = func(args ...any) {
+		for i, v := range args {
+			switch vv := v.(type) {
+			case []byte:
+				print(hex.EncodeToString(vv))
+			default:
+				print(v)
+			}
+			if i == len(args)-1 {
+				println()
+			} else {
+				print(" ")
+			}
+		}
+	}
 )

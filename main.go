@@ -214,8 +214,8 @@ func main() {
 			output -= 8 * (angle + 32767)
 		}
 		output -= force[0]
-		if cnt%100 == 0 {
-			logger.Debugf("%d: v=%v,c=%v,a=%v,f=%v,o=%v,r=%v",
+		if logger.DEBUG && cnt%100 == 0 {
+			log.Printf("%d: v=%v,c=%v,a=%v,f=%v,o=%v,r=%v",
 				time.Now().UnixMilli(),
 				state.Verocity,
 				state.Current,

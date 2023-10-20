@@ -1,11 +1,12 @@
 TARGET=pico
 TINYGO=tinygo
 NAME=diy-ffb-wheel
-TAGS=dummy,debug
+TAGS=-tags dummy -tags debug
 OPTIONS=-target $(TARGET)
 ifneq (TAGS, "")
-OPTIONS+=-tags $(TAGS)
+OPTIONS+=$(TAGS)
 endif
+export OPTIONS
 -include .env
 
 .PHONY: build all flash wait mon
@@ -32,4 +33,4 @@ server:
 	"C:\Program Files\SEGGER\JLink\JLinkGDBServer.exe" -if swd -port 3333 -speed 4000 -device rp2040_m0_0 &
 
 docker:
-	OPTIONS="$(OPTIONS)" docker compose up build 
+	docker compose up build 
