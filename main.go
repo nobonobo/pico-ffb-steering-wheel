@@ -158,9 +158,9 @@ func main() {
 					}
 				}
 				if dummyMode && i == 10 {
-					js.Buttons[0] = (v >> 0) & 0xff
-					js.Buttons[1] = (v >> 8) & 0xff
-					js.Buttons[2] = (v >> 16) & 0xff
+					js.Buttons[0] = byte((v >> 0) & 0xff)
+					js.Buttons[1] = byte((v >> 8) & 0xff)
+					js.Buttons[2] = byte((v >> 16) & 0xff)
 				}
 			}
 			if !dummyMode {
