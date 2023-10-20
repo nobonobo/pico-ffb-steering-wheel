@@ -157,28 +157,35 @@ func main() {
 						js.SetAxis(5, int(v))
 					}
 				}
+				if dummyMode && i == 10 {
+					js.Buttons[0] = (v >> 0) & 0xff
+					js.Buttons[1] = (v >> 8) & 0xff
+					js.Buttons[2] = (v >> 16) & 0xff
+				}
 			}
-			shift := setShift(axises[0], axises[1])
-			// for sequential mode
-			switch {
-			case axises[7] > 0:
-				js.SetButton(8, true)
-			case axises[6] > 0:
-				js.SetButton(9, true)
-			default:
-				js.SetButton(8, false)
-				js.SetButton(9, false)
-			}
-			if shift == 0 {
-				js.SetButton(0, axises[3] > 8192)
-				js.SetButton(1, axises[4] > 8192)
-				js.SetButton(5, axises[5] > 8192)
-				js.SetButton(6, axises[2] > 8192)
-			} else {
-				js.SetButton(0, false)
-				js.SetButton(1, false)
-				js.SetButton(5, false)
-				js.SetButton(6, false)
+			if !dummyMode {
+				shift := setShift(axises[0], axises[1])
+				// for sequential mode
+				switch {
+				case axises[7] > 0:
+					js.SetButton(8, true)
+				case axises[6] > 0:
+					js.SetButton(9, true)
+				default:
+					js.SetButton(8, false)
+					js.SetButton(9, false)
+				}
+				if shift == 0 {
+					js.SetButton(0, axises[3] > 8192)
+					js.SetButton(1, axises[4] > 8192)
+					js.SetButton(5, axises[5] > 8192)
+					js.SetButton(6, axises[2] > 8192)
+				} else {
+					js.SetButton(0, false)
+					js.SetButton(1, false)
+					js.SetButton(5, false)
+					js.SetButton(6, false)
+				}
 			}
 		}
 		log.Print(scanner.Err())
@@ -218,9 +225,9 @@ func main() {
 		if err := motor.Output(can, int16(limit1(output))); err != nil {
 			log.Print(err)
 		}
-		js.SetButton(2, angle > 32767)
-		js.SetButton(3, angle < -32767)
 		if !dummyMode {
+			js.SetButton(2, angle > 32767)
+			js.SetButton(3, angle < -32767)
 			js.SetAxis(0, int(limit1(angle)))
 			js.SetAxis(5, int(limit1(angle)))
 		}
