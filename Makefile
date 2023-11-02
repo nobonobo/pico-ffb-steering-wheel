@@ -1,7 +1,7 @@
 TARGET=pico
 TINYGO=tinygo
 NAME=diy-ffb-wheel
-TAGS=dummy
+TAGS=
 -include .env
 export TARGET
 export TAGS
@@ -10,7 +10,7 @@ export TAGS
 
 build:
 	mkdir -p build
-	$(TINYGO) build -tags '$(TAGS)' -target $(TARGET) -o build/$(NAME).elf .
+	$(TINYGO) build -tags '$(TAGS)' -target $(TARGET) -o build/$(NAME).uf2 .
 
 all: flash wait monitor
 

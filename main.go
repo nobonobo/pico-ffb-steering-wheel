@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"log"
 	"machine"
-	"machine/usb/joystick"
+	"machine/usb/hid/joystick"
 	"os"
 	"strconv"
 	"strings"
@@ -31,21 +31,21 @@ const (
 	CAN_RX    machine.Pin = 20
 	CAN_CS    machine.Pin = 21
 
-	DEBUG         = false
 	Lock2Lock     = 540
 	HalfLock2Lock = Lock2Lock / 2
 	MaxAngle      = 32768*HalfLock2Lock/360 - 1
 )
 
 var (
-	spi = machine.SPI0
-	js  *joystick.Joystick
-	ph  *pid.PIDHandler
+	spi       = machine.SPI0
+	js        = joystick.Port()
+	ph        *pid.PIDHandler
+	dummyMode = false
 )
 
 func init() {
 	ph = pid.NewPIDHandler()
-	js = joystick.Enable(joystick.Definitions{
+	js = joystick.UseSettings(joystick.Definitions{
 		ReportID:     1,
 		ButtonCnt:    24,
 		HatSwitchCnt: 0,
@@ -77,10 +77,11 @@ func init() {
 
 var (
 	axMap = map[int]int{
-		0: 1, // side
-		1: 2, // throttle
-		2: 4, // brake
-		3: 3, // clutch
+		2: 1, // side
+		3: 2, // throttle
+		4: 4, // brake
+		5: 3, // clutch
+		9: 0, // steering
 	}
 	shift = [][]int{
 		0: {2, 0, 1},
@@ -132,13 +133,12 @@ func main() {
 	); err != nil {
 		log.Print(err)
 	}
-	receiver := true
 	go func() {
-		defer func() { receiver = false }()
-		time.Sleep(10 * time.Second)
-		axises := make([]int32, 8)
+		time.Sleep(1 * time.Second)
+		axises := make([]int32, 11)
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan() {
+			dummyMode = false
 			for i, s := range strings.Split(scanner.Text(), ",") {
 				if i >= len(axises) {
 					break
@@ -148,31 +148,46 @@ func main() {
 					break
 				}
 				axises[i] = int32(v)
+				dummyMode = i >= 9
 			}
-			for i, v := range axises[2:6] {
-				js.SetAxis(axMap[i], int(v))
+			for i, v := range axises {
+				idx, ok := axMap[i]
+				if ok {
+					js.SetAxis(idx, int(v))
+					if idx == 0 {
+						js.SetAxis(0, int(v))
+						js.SetAxis(5, int(v))
+					}
+				}
+				if dummyMode && i == 10 {
+					js.Buttons[0] = byte((v >> 0) & 0xff)
+					js.Buttons[1] = byte((v >> 8) & 0xff)
+					js.Buttons[2] = byte((v >> 16) & 0xff)
+				}
 			}
-			shift := setShift(axises[0], axises[1])
-			// for sequential mode
-			switch {
-			case axises[7] > 0:
-				js.SetButton(8, true)
-			case axises[6] > 0:
-				js.SetButton(9, true)
-			default:
-				js.SetButton(8, false)
-				js.SetButton(9, false)
-			}
-			if shift == 0 {
-				js.SetButton(0, axises[3] > 8192)
-				js.SetButton(1, axises[4] > 8192)
-				js.SetButton(5, axises[5] > 8192)
-				js.SetButton(6, axises[2] > 8192)
-			} else {
-				js.SetButton(0, false)
-				js.SetButton(1, false)
-				js.SetButton(5, false)
-				js.SetButton(6, false)
+			if !dummyMode {
+				shift := setShift(axises[0], axises[1])
+				// for sequential mode
+				switch {
+				case axises[7] > 0:
+					js.SetButton(8, true)
+				case axises[6] > 0:
+					js.SetButton(9, true)
+				default:
+					js.SetButton(8, false)
+					js.SetButton(9, false)
+				}
+				if shift == 0 {
+					js.SetButton(0, axises[3] > 8192)
+					js.SetButton(1, axises[4] > 8192)
+					js.SetButton(5, axises[5] > 8192)
+					js.SetButton(6, axises[2] > 8192)
+				} else {
+					js.SetButton(0, false)
+					js.SetButton(1, false)
+					js.SetButton(5, false)
+					js.SetButton(6, false)
+				}
 			}
 		}
 		log.Print(scanner.Err())
@@ -185,7 +200,7 @@ func main() {
 	if err := motor.Setup(can); err != nil {
 		log.Fatal(err)
 	}
-	ticker := time.NewTicker(10 * time.Millisecond)
+	ticker := time.NewTicker(1 * time.Millisecond)
 	fit := utils.Map(-MaxAngle, MaxAngle, -32767, 32767)
 	limit1 := utils.Limit(-32767, 32767)
 	limit2 := utils.Limit(-500, 500)
@@ -205,15 +220,6 @@ func main() {
 			output -= 8 * (angle + 32767)
 		}
 		output -= force[0]
-		if DEBUG && cnt%100 == 0 {
-			print(time.Now().UnixMilli(), ": ")
-			print("v:", state.Verocity, ", ")
-			print("c:", state.Current, ", ")
-			print("a:", angle, ", ")
-			print("f:", force[0], ", ", force[1], ", ")
-			print("o:", output, ", ", receiver)
-			println()
-		}
 		cnt++
 		if cnt < 300 {
 			output = output * int32(cnt) / 300
@@ -221,10 +227,18 @@ func main() {
 		if err := motor.Output(can, int16(limit1(output))); err != nil {
 			log.Print(err)
 		}
-		js.SetButton(2, angle > 32767)
-		js.SetButton(3, angle < -32767)
-		js.SetAxis(0, int(limit1(angle)))
-		js.SetAxis(5, int(limit1(angle)))
-		js.SendState()
+		if !dummyMode {
+			js.SetButton(2, angle > 32767)
+			js.SetButton(3, angle < -32767)
+			js.SetButton(4, false)
+			js.SetButton(7, false)
+			js.SetButton(8, false)
+			js.SetButton(9, false)
+			js.SetAxis(0, int(limit1(angle)))
+			js.SetAxis(5, int(limit1(angle)))
+		}
+		if cnt%10 == 0 {
+			js.SendState()
+		}
 	}
 }

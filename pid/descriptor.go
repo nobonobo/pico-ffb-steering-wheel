@@ -1,5 +1,6 @@
 package pid
 
+//go:align 4
 var Descriptor = []byte{
 	0x05, 0x01, // USAGE_PAGE (Generic Desktop)
 	0x09, 0x08, // USAGE (0x04:Joystick/0x05:Gamepad/0x08:Multi-axis)

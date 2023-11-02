@@ -29,7 +29,12 @@ func NewPIDHandler() *PIDHandler {
 	return &PIDHandler{
 		effectStates: effects,
 		pidBlockLoad: PIDBlockLoadFeatureData{b: make([]byte, 5)},
-		pidPool:      PIDPoolFeatureData{b: make([]byte, 5)},
+		pidPool: PIDPoolFeatureData{
+			ReportID:               7,
+			RamPoolSize:            MEMORY_SIZE,
+			MaxSimultaneousEffects: MAX_EFFECTS,
+			MemoryManagement:       3,
+			b:                      make([]byte, 5)},
 		gains: Gains{
 			TotalGain:    255,
 			ConstantGain: 255,
@@ -109,12 +114,7 @@ func (m *PIDHandler) GetReport(setup usb.Setup) bool {
 			machine.SendUSBInPacket(0, b)
 			return true
 		case 7:
-			b, _ := PIDPoolFeatureData{
-				ReportID:               7,
-				RamPoolSize:            MEMORY_SIZE,
-				MaxSimultaneousEffects: MAX_EFFECTS,
-				MemoryManagement:       3,
-			}.MarshalBinary()
+			b, _ := m.pidPool.MarshalBinary()
 			machine.SendUSBInPacket(0, b)
 			return true
 		}
