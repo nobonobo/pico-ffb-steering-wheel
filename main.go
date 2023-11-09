@@ -31,7 +31,14 @@ const (
 	CAN_RX    machine.Pin = 20
 	CAN_CS    machine.Pin = 21
 
-	Lock2Lock     = 540
+	// Device Specific Configuration
+	NeutralAdjust       = -6.5 // unit:deg
+	Lock2Lock           = 1080 // unit:deg
+	CoggingTorqueCancel = 128  // 32768 // unit:100*n/256 %
+	Viscosity           = 128  // 30000 // unit:100*n/256 %
+	CenteringForce      = 500  // unit:100*n/32767 %
+	SoftLockForce       = 8    // unit:100*n %
+
 	HalfLock2Lock = Lock2Lock / 2
 	MaxAngle      = 32768*HalfLock2Lock/360 - 1
 )
@@ -93,23 +100,20 @@ var (
 	limitx = utils.Limit(0, 3)
 	fity   = utils.Map(-32767, 32767, 0, 3)
 	limity = utils.Limit(0, 2)
-	prev   = 0
 )
 
-func setShift(x, y int32) int {
+func setShift(x, y int32) (neutral bool) {
 	const begin = 10
 	dx, dy := limitx(fitx(x)), limity(fity(y))
-	next := shift[dx][dy]
-	if next != prev {
-		if prev > 0 {
-			js.SetButton(prev+begin-1, false)
-		}
-		if next > 0 {
-			js.SetButton(next+begin-1, true)
+	s := shift[dx][dy]
+	for i := 1; i < 9; i++ {
+		if i == s {
+			js.SetButton(i+begin-1, true)
+		} else {
+			js.SetButton(i+begin-1, false)
 		}
 	}
-	prev = next
-	return next
+	return s == 0
 }
 
 func absInt32(n int32) int32 {
@@ -117,6 +121,12 @@ func absInt32(n int32) int32 {
 		return -n
 	}
 	return n
+}
+
+func pow3(v int32) int32 {
+	r := v * v / 256
+	r = r * v / 256
+	return r
 }
 
 func main() {
@@ -166,7 +176,7 @@ func main() {
 				}
 			}
 			if !dummyMode {
-				shift := setShift(axises[0], axises[1])
+				neutral := setShift(axises[0], axises[1])
 				// for sequential mode
 				switch {
 				case axises[7] > 0:
@@ -177,16 +187,16 @@ func main() {
 					js.SetButton(8, false)
 					js.SetButton(9, false)
 				}
-				if shift == 0 {
+				if neutral {
 					js.SetButton(0, axises[3] > 8192)
 					js.SetButton(1, axises[4] > 8192)
-					js.SetButton(5, axises[5] > 8192)
-					js.SetButton(6, axises[2] > 8192)
+					js.SetButton(2, axises[5] > 8192)
+					js.SetButton(3, axises[2] > 8192)
 				} else {
 					js.SetButton(0, false)
 					js.SetButton(1, false)
-					js.SetButton(5, false)
-					js.SetButton(6, false)
+					js.SetButton(2, false)
+					js.SetButton(3, false)
 				}
 			}
 		}
@@ -200,27 +210,38 @@ func main() {
 	if err := motor.Setup(can); err != nil {
 		log.Fatal(err)
 	}
+	motor.SetNeutralAdjust(NeutralAdjust)
 	ticker := time.NewTicker(1 * time.Millisecond)
 	fit := utils.Map(-MaxAngle, MaxAngle, -32767, 32767)
 	limit1 := utils.Limit(-32767, 32767)
-	limit2 := utils.Limit(-500, 500)
+	limit2 := utils.Limit(-CenteringForce, CenteringForce)
 	cnt := 0
 	for range ticker.C {
 		state, err := motor.GetState(can)
 		if err != nil {
 			log.Print(err)
 		}
+		verocity := 256 * int32(state.Verocity) / 220
 		angle := fit(state.Angle)
-		output := limit2(-angle) + int32(state.Verocity)*128
+		output := limit2(-angle)              // Centering
+		cog := CoggingTorqueCancel * verocity // Cogging Torque Cancel
+		decel := -Viscosity * pow3(verocity)  // Viscosity
+		output += int32(cog + decel)          // Sum
 		force := ph.CalcForces()
 		switch {
 		case angle > 32767:
-			output -= 8 * (angle - 32767)
+			output -= SoftLockForce * (angle - 32767)
 		case angle < -32767:
-			output -= 8 * (angle + 32767)
+			output -= SoftLockForce * (angle + 32767)
 		}
 		output -= force[0]
 		cnt++
+		/*
+			if cnt%100 == 0 {
+				log.Printf("angle:%d, verocity:%d, cogl:%d, decel:%d, o:%d", angle, verocity, cog, decel, output)
+			}
+		*/
+		// for slow start
 		if cnt < 300 {
 			output = output * int32(cnt) / 300
 		}
@@ -228,12 +249,10 @@ func main() {
 			log.Print(err)
 		}
 		if !dummyMode {
-			js.SetButton(2, angle > 32767)
-			js.SetButton(3, angle < -32767)
 			js.SetButton(4, false)
-			js.SetButton(7, false)
-			js.SetButton(8, false)
-			js.SetButton(9, false)
+			js.SetButton(5, false)
+			js.SetButton(6, angle < -32767)
+			js.SetButton(7, angle > 32767)
 			js.SetAxis(0, int(limit1(angle)))
 			js.SetAxis(5, int(limit1(angle)))
 		}
