@@ -12,8 +12,9 @@ import (
 
 	"tinygo.org/x/drivers/mcp2515"
 
-	"diy-ffb-wheel/control"
-	"diy-ffb-wheel/utils"
+	"github.com/SWITCHSCIENCE/ffb_steering_controller/control"
+	"github.com/SWITCHSCIENCE/ffb_steering_controller/settings"
+	"github.com/SWITCHSCIENCE/ffb_steering_controller/utils"
 )
 
 const (
@@ -77,6 +78,79 @@ func getShift(x, y int32) int {
 	dx, dy := limitx(fitx(x)), limity(fity(y))
 	s := shift[dx][dy]
 	return s
+}
+
+var (
+	sw [3]bool
+)
+
+func update() {
+	s := settings.Get()
+	now := [3]bool{
+		!SW1.Get(),
+		!SW2.Get(),
+		!SW3.Get(),
+	}
+	active := [3]bool{
+		now[0] && !sw[0],
+		now[1] && !sw[1],
+		now[2] && !sw[2],
+	}
+	copy(sw[:], now[:])
+	current := s.Lock2Lock
+	next := current
+	switch {
+	case active[2]:
+		switch current {
+		case 1080:
+		case 720:
+			next = 1080
+		case 540:
+			next = 720
+		case 360:
+			next = 540
+		case 180:
+			next = 360
+		}
+	case active[0]:
+		switch s.Lock2Lock {
+		case 1080:
+			next = 720
+		case 720:
+			next = 540
+		case 540:
+			next = 360
+		case 360:
+			next = 180
+		case 180:
+		}
+	}
+	switch next {
+	case 1080:
+		LED1.Low()
+		LED2.High()
+		LED3.High()
+	case 720:
+		LED1.Low()
+		LED2.Low()
+		LED3.High()
+	case 540:
+		LED1.High()
+		LED2.Low()
+		LED3.High()
+	case 360:
+		LED1.High()
+		LED2.Low()
+		LED3.Low()
+	case 180:
+		LED1.High()
+		LED2.High()
+		LED3.Low()
+	}
+	if s.Lock2Lock != next {
+		s.Lock2Lock = next
+		settings.Update(s)
+	}
 }
 
 func main() {
@@ -160,6 +234,17 @@ func main() {
 		}
 	}()
 	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		tick := time.NewTicker(20 * time.Millisecond)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				update()
+			}
+		}
+	}()
 	defer cancel()
 	for {
 		if err := js.Loop(ctx); err != nil {
