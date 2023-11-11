@@ -233,6 +233,9 @@ func main() {
 			log.Print(err)
 		}
 	}()
+	s := settings.Get()
+	s.MaxCenteringForce = 50
+	settings.Update(s)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		tick := time.NewTicker(20 * time.Millisecond)
