@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"log"
 	"machine"
 	"os"
 	"strconv"
@@ -60,7 +59,6 @@ var (
 		3: 2, // throttle
 		4: 4, // brake
 		5: 3, // clutch
-		9: 0, // steering
 	}
 	shift = [][]int{
 		0: {2, 0, 1},
@@ -68,14 +66,13 @@ var (
 		2: {6, 0, 5},
 		3: {8, 0, 7},
 	}
-	fitx   = utils.Map(-32767, 32767, 0, 4)
-	limitx = utils.Limit(0, 3)
-	fity   = utils.Map(-32767, 32767, 0, 3)
-	limity = utils.Limit(0, 2)
+	limitx         = utils.Limit(-1, 2)
+	limity         = utils.Limit(-1, 1)
+	sequentialMode = true
 )
 
 func getShift(x, y int32) int {
-	dx, dy := limitx(fitx(x)), limity(fity(y))
+	dx, dy := limitx(x)+1, limity(y)+1
 	s := shift[dx][dy]
 	return s
 }
@@ -155,7 +152,6 @@ func update() {
 
 func main() {
 	LED1.Low()
-	log.SetFlags(log.Lmicroseconds)
 	if err := spi.Configure(
 		machine.SPIConfig{
 			Frequency: 500000,
@@ -165,72 +161,94 @@ func main() {
 			Mode:      0,
 		},
 	); err != nil {
-		log.Print(err)
+		panic(err)
 	}
 	can := mcp2515.New(spi, CAN_CS)
 	can.Configure()
 	if err := can.Begin(mcp2515.CAN500kBps, mcp2515.Clock8MHz); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	js := control.NewWheel(can)
 	go func() {
-		time.Sleep(1 * time.Second)
-		axises := make([]int32, 11)
-		scanner := bufio.NewScanner(os.Stdin)
-		for scanner.Scan() {
-			for i, s := range strings.Split(scanner.Text(), ",") {
-				if i >= len(axises) {
-					break
-				}
-				v, err := strconv.Atoi(s)
-				if err != nil {
-					break
-				}
-				axises[i] = int32(v)
+		defer func() {
+			if err := recover(); err != nil {
+				println(err)
 			}
-			for i, v := range axises {
-				idx, ok := axMap[i]
-				if ok {
-					js.SetAxis(idx, int(v))
-					if idx == 0 {
-						js.SetAxis(0, int(v))
-						js.SetAxis(5, int(v))
+		}()
+		for {
+			time.Sleep(1 * time.Second)
+			axises := make([]int32, 11)
+			scanner := bufio.NewScanner(os.Stdin)
+			for scanner.Scan() {
+				args := strings.Split(scanner.Text(), ",")
+				if len(args) != 6 {
+					println("length mismatch:", len(args))
+					continue
+				}
+				for i, s := range args {
+					if i >= len(axises) {
+						println("length mismatch:", i)
+						continue
+					}
+					v, err := strconv.Atoi(s)
+					if err != nil {
+						println(err)
+						continue
+					}
+					axises[i] = int32(v)
+				}
+				for i, v := range axises {
+					idx, ok := axMap[i]
+					if ok {
+						js.SetAxis(idx, int(v))
+						if idx == 0 {
+							js.SetAxis(0, int(v))
+							js.SetAxis(5, int(v))
+						}
 					}
 				}
-			}
-			shift := getShift(axises[0], axises[1])
-			// for sequential mode
-			switch {
-			case axises[7] > 0:
-				js.SetButton(8, true)
-			case axises[6] > 0:
-				js.SetButton(9, true)
-			default:
-				js.SetButton(8, false)
-				js.SetButton(9, false)
-				const begin = 10
-				for i := 1; i < 9; i++ {
-					if i == shift {
-						js.SetButton(i+begin-1, true)
-					} else {
-						js.SetButton(i+begin-1, false)
+				shift := getShift(axises[0], axises[1])
+				if axises[0] != 0 {
+					sequentialMode = false
+				}
+				// for sequential mode
+				if sequentialMode {
+					switch {
+					case axises[1] > 0:
+						js.SetButton(8, true)
+					case axises[1] < 0:
+						js.SetButton(9, true)
+					default:
+						js.SetButton(8, false)
+						js.SetButton(9, false)
+					}
+				} else {
+					js.SetButton(8, false)
+					js.SetButton(9, false)
+					const begin = 10
+					for i := 1; i < 9; i++ {
+						if i == shift {
+							js.SetButton(i+begin-1, true)
+						} else {
+							js.SetButton(i+begin-1, false)
+						}
 					}
 				}
+				if shift == 0 {
+					js.SetButton(0, axises[3] > 8192)
+					js.SetButton(1, axises[4] > 8192)
+					js.SetButton(2, axises[5] > 8192)
+					js.SetButton(3, axises[2] > 8192)
+				} else {
+					js.SetButton(0, false)
+					js.SetButton(1, false)
+					js.SetButton(2, false)
+					js.SetButton(3, false)
+				}
 			}
-			if shift == 0 {
-				js.SetButton(0, axises[3] > 8192)
-				js.SetButton(1, axises[4] > 8192)
-				js.SetButton(2, axises[5] > 8192)
-				js.SetButton(3, axises[2] > 8192)
-			} else {
-				js.SetButton(0, false)
-				js.SetButton(1, false)
-				js.SetButton(2, false)
-				js.SetButton(3, false)
+			if err := scanner.Err(); err != nil {
+				println(err)
 			}
-		}
-		if err := scanner.Err(); err != nil {
-			log.Print(err)
 		}
 	}()
 	s := settings.Get()
@@ -251,7 +269,7 @@ func main() {
 	defer cancel()
 	for {
 		if err := js.Loop(ctx); err != nil {
-			log.Print(err)
+			println(err)
 			time.Sleep(3 * time.Second)
 		}
 	}
