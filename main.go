@@ -1,19 +1,14 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"machine"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"tinygo.org/x/drivers/mcp2515"
 
 	"github.com/SWITCHSCIENCE/ffb_steering_controller/control"
 	"github.com/SWITCHSCIENCE/ffb_steering_controller/settings"
-	"github.com/SWITCHSCIENCE/ffb_steering_controller/utils"
 )
 
 const (
@@ -33,6 +28,7 @@ const (
 
 var (
 	spi = machine.SPI0
+	sw  [3]bool
 )
 
 func init() {
@@ -52,34 +48,6 @@ func init() {
 	CAN_RESET.High()
 	time.Sleep(10 * time.Millisecond)
 }
-
-var (
-	axMap = map[int]int{
-		2: 1, // side
-		3: 2, // throttle
-		4: 4, // brake
-		5: 3, // clutch
-	}
-	shift = [][]int{
-		0: {2, 0, 1},
-		1: {4, 0, 3},
-		2: {6, 0, 5},
-		3: {8, 0, 7},
-	}
-	limitx         = utils.Limit(-1, 2)
-	limity         = utils.Limit(-1, 1)
-	sequentialMode = true
-)
-
-func getShift(x, y int32) int {
-	dx, dy := limitx(x)+1, limity(y)+1
-	s := shift[dx][dy]
-	return s
-}
-
-var (
-	sw [3]bool
-)
 
 func update() {
 	s := settings.Get()
@@ -169,88 +137,6 @@ func main() {
 		panic(err)
 	}
 	js := control.NewWheel(can)
-	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				println(err)
-			}
-		}()
-		for {
-			time.Sleep(1 * time.Second)
-			axises := make([]int32, 11)
-			scanner := bufio.NewScanner(os.Stdin)
-			for scanner.Scan() {
-				args := strings.Split(scanner.Text(), ",")
-				if len(args) != 6 {
-					println("length mismatch:", len(args))
-					continue
-				}
-				for i, s := range args {
-					if i >= len(axises) {
-						println("length mismatch:", i)
-						continue
-					}
-					v, err := strconv.Atoi(s)
-					if err != nil {
-						println(err)
-						continue
-					}
-					axises[i] = int32(v)
-				}
-				for i, v := range axises {
-					idx, ok := axMap[i]
-					if ok {
-						js.SetAxis(idx, int(v))
-						if idx == 0 {
-							js.SetAxis(0, int(v))
-							js.SetAxis(5, int(v))
-						}
-					}
-				}
-				shift := getShift(axises[0], axises[1])
-				if axises[0] != 0 {
-					sequentialMode = false
-				}
-				// for sequential mode
-				if sequentialMode {
-					switch {
-					case axises[1] > 0:
-						js.SetButton(8, true)
-					case axises[1] < 0:
-						js.SetButton(9, true)
-					default:
-						js.SetButton(8, false)
-						js.SetButton(9, false)
-					}
-				} else {
-					js.SetButton(8, false)
-					js.SetButton(9, false)
-					const begin = 10
-					for i := 1; i < 9; i++ {
-						if i == shift {
-							js.SetButton(i+begin-1, true)
-						} else {
-							js.SetButton(i+begin-1, false)
-						}
-					}
-				}
-				if shift == 0 {
-					js.SetButton(0, axises[3] > 8192)
-					js.SetButton(1, axises[4] > 8192)
-					js.SetButton(2, axises[5] > 8192)
-					js.SetButton(3, axises[2] > 8192)
-				} else {
-					js.SetButton(0, false)
-					js.SetButton(1, false)
-					js.SetButton(2, false)
-					js.SetButton(3, false)
-				}
-			}
-			if err := scanner.Err(); err != nil {
-				println(err)
-			}
-		}
-	}()
 	s := settings.Get()
 	s.MaxCenteringForce = 50
 	settings.Update(s)
