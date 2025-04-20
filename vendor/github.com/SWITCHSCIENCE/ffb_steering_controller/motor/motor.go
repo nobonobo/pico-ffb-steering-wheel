@@ -1,10 +1,11 @@
+//go:build !dummy
+
 package motor
 
 import (
 	"encoding/binary"
-	"fmt"
-	"log"
 	"runtime"
+	"time"
 
 	"tinygo.org/x/drivers/mcp2515"
 )
@@ -49,35 +50,36 @@ func Setup(can *mcp2515.Device) error {
 	if err := can.Tx(0x109, 8, []byte{0, 0, 0, 0, 0, 0, 0, 0}); err != nil {
 		return err
 	}
-	msg, err := ReadFrame(can)
+	_, err := ReadFrame(can)
 	if err != nil {
 		return err
 	}
-	log.Printf("%#v", msg)
 	if err := can.Tx(0x106, 8, []byte{0x80, 0, 0, 0, 0, 0, 0, 0}); err != nil {
 		return err
 	}
-	msg, err = ReadFrame(can)
+	_, err = ReadFrame(can)
 	if err != nil {
 		return err
 	}
-	log.Printf("%#v", msg)
 	if err := can.Tx(0x105, 8, []byte{0x00, 0, 0, 0, 0, 0, 0, 0}); err != nil {
 		return err
 	}
-	msg, err = ReadFrame(can)
+	_, err = ReadFrame(can)
 	if err != nil {
 		return err
 	}
-	log.Printf("%#v", msg)
 	return nil
 }
 
-var state = MotorState{adjust: -600}
+var state = MotorState{adjust: 0}
+
+func SetNeutralAdjust(adjDeg float32) {
+	state.adjust = int32(adjDeg * 32767 / 360)
+}
 
 func GetState(can *mcp2515.Device) (*MotorState, error) {
 	if err := can.Tx(0x107, 8, []byte{0x01, 0x01, 0x02, 0x04, 0x55, 0, 0, 0}); err != nil {
-		fmt.Println(err.Error())
+		return nil, err
 	}
 	msg, err := ReadFrame(can)
 	if err != nil {
@@ -88,6 +90,27 @@ func GetState(can *mcp2515.Device) (*MotorState, error) {
 }
 
 var buf = make([]byte, 8)
+
+func Enable(can *mcp2515.Device) error {
+	if err := can.Tx(0x105, 8, []byte{0x0A, 0, 0, 0, 0, 0, 0, 0}); err != nil {
+		return err
+	}
+	if _, err := ReadFrame(can); err != nil {
+		return err
+	}
+	time.Sleep(100 * time.Millisecond)
+	return Setup(can)
+}
+
+func Disable(can *mcp2515.Device) error {
+	if err := can.Tx(0x105, 8, []byte{0x09, 0, 0, 0, 0, 0, 0, 0}); err != nil {
+		return err
+	}
+	if _, err := ReadFrame(can); err != nil {
+		return err
+	}
+	return nil
+}
 
 func Output(can *mcp2515.Device, pow int16) error {
 	binary.BigEndian.PutUint16(buf[0:2], uint16(-pow))

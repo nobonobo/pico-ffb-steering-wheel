@@ -17,3 +17,10 @@ func Limit(min, max int32) func(x int32) int32 {
 		return x
 	}
 }
+
+func Abs[T int | int8 | int16 | int32 | int64 | float32 | float64](s T) T {
+	if s < 0 {
+		return -s
+	}
+	return s
+}
